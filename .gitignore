@@ -1,0 +1,19 @@
+__pycache__/
+.pycache/
+*.pyc
+
+# macOS
+.DS_Store
+
+# Runtime logs and generated evidence
+*.log
+*.log.*
+docs/evidence_runtime.md
+
+# Local secrets created during the Linux exercise
+api_keys/
+**/api_keys/
+*.key
+
+# Temporary local files
+.codex_write_test
