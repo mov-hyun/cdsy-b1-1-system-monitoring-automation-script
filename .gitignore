@@ -2,6 +2,9 @@ __pycache__/
 .pycache/
 *.pyc
 
+# Provided assignment binaries kept locally only
+agent-app/
+
 # macOS
 .DS_Store
 
