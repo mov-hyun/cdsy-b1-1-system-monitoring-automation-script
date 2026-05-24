@@ -550,20 +550,49 @@ sudo ss -tulnp | grep ':22 ' -> 출력 없음
 #### 실행 명령
 
 ```bash
-TODO
+sudo ufw --force reset              # 기존 UFW 규칙 초기화
+
+sudo ufw default deny incoming      # 인바운드 기본 차단
+sudo ufw default allow outgoing     # 아웃바운드 기본 허용
+
+sudo ufw allow 20022/tcp            # SSH 접속 포트 허용
+sudo ufw allow 15034/tcp            # Agent 앱 포트 허용
+
+sudo ufw --force enable             # UFW 활성화
+
+sudo ufw status verbose             # 방화벽 상태와 허용 규칙 확인
 ```
 
 #### 확인 결과
 
 ```text
-TODO
+Default incoming policy changed to 'deny'
+Default outgoing policy changed to 'allow'
+Rules updated
+Rules updated (v6)
+Rules updated
+Rules updated (v6)
+Firewall is active and enabled on system startup
+
+Status: active
+Logging: on (low)
+Default: deny (incoming), allow (outgoing), deny (routed)
+New profiles: skip
+
+To                         Action      From
+--                         ------      ----
+20022/tcp                  ALLOW IN    Anywhere
+15034/tcp                  ALLOW IN    Anywhere
+20022/tcp (v6)             ALLOW IN    Anywhere (v6)
+15034/tcp (v6)             ALLOW IN    Anywhere (v6)
 ```
 
 #### 정리
 
-- 선택 도구: TODO
-- 허용 포트: TODO
-- 활성화 상태: TODO
+- 선택 도구: UFW
+- 기본 정책: 인바운드 차단, 아웃바운드 허용
+- 허용 포트: `20022/tcp`, `15034/tcp`
+- 활성화 상태: `active`
 
 ### 4.7 monitor.sh
 
