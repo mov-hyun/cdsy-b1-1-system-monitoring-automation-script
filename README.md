@@ -8,7 +8,6 @@
 ![cron](https://img.shields.io/badge/Scheduler-cron-6B7280?style=flat-square)
 
 ## 목차
----
 
 1. [과제 개요](#1-과제-개요)
 2. [실습 환경 및 필수 도구 확인](#2-실습-환경-및-필수-도구-확인)
@@ -16,9 +15,9 @@
 4. [수행 내역](#4-수행-내역)
 5. [장애 상황 대응](#5-장애-상황-대응)
 6. [보너스 과제](#6-보너스-과제)
+7. [트러블슈팅](#7-트러블슈팅)
 
 ## 1. 과제 개요
----
 
 이 과제는 단일 Linux 서버를 운영한다고 가정하고, 기본 보안 설정부터 서비스 실행, 상태 점검, 로그 기록, 자동 실행까지 구성하는 실습입니다.
 주요 목표는 다음과 같습니다.
@@ -74,8 +73,9 @@
 
 </details>
 
-## 2. 실습 환경 및 필수 도구 확인
 ---
+
+## 2. 실습 환경 및 필수 도구 확인
 
 Linux 실습 환경과 필수 도구 준비
 
@@ -100,8 +100,9 @@ Linux 실습 환경과 필수 도구 준비
 | `crontab` | 사용자별 cron 작업 등록 도구 | `agent-admin` 계정의 매분 실행 일정을 등록하고 확인하기 위해 사용 |
 | `ss` | 네트워크 소켓 상태 확인 도구 | `sshd`와 Agent 앱이 각각 `20022`, `15034` 포트에서 LISTEN 중인지 확인하기 위해 사용 |
 
-## 3. 핵심 개념 정리
 ---
+
+## 3. 핵심 개념 정리
 
 ### 3.1 SSH 포트 변경과 root 접속 차단
 
@@ -133,7 +134,21 @@ root 원격 접속을 차단하는 이유는 관리자 권한 계정이 직접 �
 
 `api_keys`와 `/var/log/agent-app`은 민감 정보와 운영 로그를 포함하므로 `agent-core` 그룹으로 접근을 제한합니다.
 
-필요하면 ACL을 사용해 기본 Unix 권한보다 더 세밀한 접근 제어를 적용할 수 있습니다. 예를 들어 디렉토리의 소유자/그룹 권한만으로 표현하기 어려운 접근 정책은 `setfacl`로 부여하고, `getfacl`로 실제 적용 상태를 확인할 수 있습니다.
+ACL은 Access Control List의 약자이며, 파일이나 디렉토리에 대해 추가적인 접근 권한 목록을 부여하는 기능입니다.
+
+기본 Unix 권한은 소유자, 그룹, 기타 사용자 기준으로만 권한을 나눕니다.
+
+```text
+owner / group / others
+```
+
+하지만 실제 운영에서는 기본 그룹 하나만으로는 권한 정책을 표현하기 애매한 경우가 있습니다. 이때 ACL을 사용하면 특정 사용자나 특정 그룹에 대해 추가 권한을 더 세밀하게 부여할 수 있습니다.
+
+ACL 권한은 `setfacl`로 설정하고, `getfacl`로 실제 적용 상태를 확인합니다.
+
+디렉토리 권한에서 `x`는 파일 실행이 아니라 해당 디렉토리로 진입하거나 하위 경로로 통과할 수 있는 권한입니다. 따라서 상위 디렉토리에는 `--x`만 부여해 목록 조회는 막고, 특정 하위 디렉토리까지 도달만 허용할 수 있습니다.
+
+이 과제에서는 `agent-test`가 `$AGENT_HOME/upload_files`에는 접근해야 하지만 `$AGENT_HOME/api_keys`에는 접근하면 안 됩니다. 그래서 부모 경로에는 `agent-common`의 통과 권한만 ACL로 추가하고, 실제 읽기/쓰기 권한은 `upload_files`에만 부여합니다.
 
 ### 3.5 환경 변수로 실행 환경 고정
 
@@ -177,10 +192,11 @@ logrotate는 운영체제의 표준 로그 관리 방식이고, 스크립트 내
 
 포트 확인에는 `ss` 또는 `netstat`를 사용할 수 있습니다. 최신 Linux 환경에서는 `ss`가 기본 도구로 더 적합하며, LISTEN 상태의 TCP 포트를 확인하는 데 사용합니다.
 
-## 4. 수행 내역
 ---
 
-### 4.1 계정과 그룹
+## 4. 수행 내역
+
+### 4.1 계정 및 그룹 생성
 
 #### 실행 명령
 
@@ -231,27 +247,118 @@ agent-core:x:1001:agent-admin,agent-dev
 - `agent-core`에는 `agent-admin`, `agent-dev`만 포함되었다.
 - `agent-test`는 `agent-core`에 포함하지 않아 API 키와 운영 로그 같은 핵심 영역 접근 대상에서 제외했다.
 
-### 4.2 디렉토리와 권한
+### 4.2 디렉토리 구조 및 접근 권한 설정
 
 #### 실행 명령
 
 ```bash
-TODO
+# Agent 앱 기준 디렉토리 생성
+sudo mkdir -p /home/agent-admin/agent-app/bin
+sudo mkdir -p /home/agent-admin/agent-app/upload_files
+sudo mkdir -p /home/agent-admin/agent-app/api_keys
+sudo mkdir -p /var/log/agent-app
+
+sudo chown agent-admin:agent-core /home/agent-admin/agent-app # AGENT_HOME 소유자/그룹 설정
+sudo chmod 750 /home/agent-admin/agent-app                   # 소유자는 rwx, agent-core는 r-x, others는 차단
+
+sudo chown agent-dev:agent-core /home/agent-admin/agent-app/bin # monitor.sh 배치 디렉토리 소유자/그룹 설정
+sudo chmod 750 /home/agent-admin/agent-app/bin                  # agent-core만 실행 가능하도록 제한
+
+sudo chown agent-admin:agent-common /home/agent-admin/agent-app/upload_files # 공용 업로드 디렉토리 그룹 설정
+sudo chmod 770 /home/agent-admin/agent-app/upload_files                     # agent-common에 읽기/쓰기 권한 부여
+
+sudo chown agent-admin:agent-core /home/agent-admin/agent-app/api_keys # API 키 디렉토리 그룹 설정
+sudo chmod 770 /home/agent-admin/agent-app/api_keys                   # agent-core에만 읽기/쓰기 권한 부여
+
+sudo chown agent-admin:agent-core /var/log/agent-app # Agent 로그 디렉토리 그룹 설정
+sudo chmod 770 /var/log/agent-app                   # agent-core에만 읽기/쓰기 권한 부여
+
+# agent-common이 upload_files까지 도달할 수 있도록 부모 디렉토리에 통과 권한만 부여
+sudo setfacl -m g:agent-common:--x /home/agent-admin
+sudo setfacl -m g:agent-common:--x /home/agent-admin/agent-app
+
+# 디렉토리 권한 확인
+sudo ls -ld /home
+sudo ls -ld /home/agent-admin
+sudo ls -ld /home/agent-admin/agent-app
+sudo ls -ld /home/agent-admin/agent-app/bin
+sudo ls -ld /home/agent-admin/agent-app/upload_files
+sudo ls -ld /home/agent-admin/agent-app/api_keys
+sudo ls -ld /var/log/agent-app
+
+# ACL 적용 상태 확인
+sudo getfacl /home/agent-admin
+sudo getfacl /home/agent-admin/agent-app
+sudo getfacl /home/agent-admin/agent-app/upload_files
+sudo getfacl /home/agent-admin/agent-app/api_keys
+sudo getfacl /var/log/agent-app
+
+# agent-test 접근 정책 검증
+sudo -u agent-test ls /home/agent-admin/agent-app/upload_files
+sudo -u agent-test ls /home/agent-admin/agent-app/api_keys
 ```
 
 #### 확인 결과
 
 ```text
-TODO
+drwxr-xr-x 1 root root 68 May 24 17:26 /home
+drwxr-x--- 1 agent-admin agent-admin 72 May 24 18:00 /home/agent-admin
+drwxr-x--- 1 agent-admin agent-core 46 May 24 18:00 /home/agent-admin/agent-app
+drwxr-x--- 1 agent-dev agent-core 0 May 24 18:00 /home/agent-admin/agent-app/bin
+drwxrwx--- 1 agent-admin agent-common 0 May 24 18:00 /home/agent-admin/agent-app/upload_files
+drwxrwx--- 1 agent-admin agent-core 0 May 24 18:00 /home/agent-admin/agent-app/api_keys
+drwxrwx--- 1 agent-admin agent-core 0 May 24 18:00 /var/log/agent-app
+
+# file: home/agent-admin
+# owner: agent-admin
+# group: agent-admin
+user::rwx
+group::r-x
+group:agent-common:--x
+mask::r-x
+other::---
+
+# file: home/agent-admin/agent-app
+# owner: agent-admin
+# group: agent-core
+user::rwx
+group::r-x
+group:agent-common:--x
+mask::r-x
+other::---
+
+# file: home/agent-admin/agent-app/upload_files
+# owner: agent-admin
+# group: agent-common
+user::rwx
+group::rwx
+other::---
+
+# file: home/agent-admin/agent-app/api_keys
+# owner: agent-admin
+# group: agent-core
+user::rwx
+group::rwx
+other::---
+
+# file: var/log/agent-app
+# owner: agent-admin
+# group: agent-core
+user::rwx
+group::rwx
+other::---
+
+ls: cannot open directory '/home/agent-admin/agent-app/api_keys': Permission denied
 ```
 
 #### 정리
 
-- `AGENT_HOME`: TODO
-- `upload_files` 권한: TODO
-- `api_keys` 권한: TODO
-- `/var/log/agent-app` 권한: TODO
-- ACL 사용 여부: TODO
+- `AGENT_HOME`: `/home/agent-admin/agent-app`
+- `upload_files`: `agent-admin:agent-common`, `770`
+- `api_keys`: `agent-admin:agent-core`, `770`
+- `/var/log/agent-app`: `agent-admin:agent-core`, `770`
+- `agent-common`에는 `$AGENT_HOME`까지 도달할 수 있도록 부모 디렉토리에 `--x` ACL만 부여했다.
+- `agent-test`는 `upload_files`에는 접근 가능하지만 `api_keys`에는 접근할 수 없다.
 
 ### 4.3 앱 실행 환경
 
@@ -377,15 +484,74 @@ TODO
 - 등록 주기: TODO
 - 로그 증가 확인: TODO
 
-## 5. 장애 상황 대응
 ---
+
+## 5. 장애 상황 대응
 
 - 모니터링 대상이 Nginx 등 웹 서버로 바뀌면 수정할 핵심 포인트: TODO
 - 프로세스는 살아있지만 포트가 열리지 않은 상황의 원인 후보와 확인 순서: TODO
 - 로그 급증으로 디스크가 가득 찰 위험이 있을 때 단기/중기 대응: TODO
 
-## 6. 보너스 과제
 ---
+
+## 6. 보너스 과제
 
 - `report.sh` 요약 리포트: TODO
 - 시간 기반 로그 보존 정책: TODO
+
+---
+
+## 7. 트러블슈팅
+
+### 7.1 디렉토리 권한 확인 중 Permission denied 발생
+
+#### 증상
+
+`hyun` 계정으로 `$AGENT_HOME` 하위 디렉토리 권한을 확인할 때 `Permission denied`가 발생했다.
+
+```bash
+ls -ld /home/agent-admin/agent-app
+ls -ld /home/agent-admin/agent-app/bin
+ls -ld /home/agent-admin/agent-app/upload_files
+ls -ld /home/agent-admin/agent-app/api_keys
+
+getfacl /home/agent-admin/agent-app/upload_files
+getfacl /home/agent-admin/agent-app/api_keys
+```
+
+```text
+ls: cannot access '/home/agent-admin/agent-app': Permission denied
+ls: cannot access '/home/agent-admin/agent-app/bin': Permission denied
+ls: cannot access '/home/agent-admin/agent-app/upload_files': Permission denied
+ls: cannot access '/home/agent-admin/agent-app/api_keys': Permission denied
+getfacl: /home/agent-admin/agent-app/upload_files: Permission denied
+getfacl: /home/agent-admin/agent-app/api_keys: Permission denied
+```
+
+#### 원인
+
+`/home/agent-admin/agent-app`를 `agent-admin:agent-core`, `750`으로 설정했기 때문에 `agent-core` 그룹에 속하지 않은 `hyun` 계정은 해당 디렉토리에 접근할 수 없다.
+
+또한 부모 디렉토리를 통과할 수 없으면 하위 디렉토리 권한이 열려 있어도 접근할 수 없다. 예를 들어 `upload_files`가 `agent-common` 그룹에 열려 있더라도, 상위 경로인 `$AGENT_HOME`을 통과할 실행 권한이 없으면 `agent-test`가 `upload_files`까지 도달하지 못할 수 있다.
+
+#### 다음 확인
+
+권한 확인은 현재 작업 계정이 아니라 `sudo` 또는 실제 접근 대상 계정 기준으로 수행한다.
+
+```bash
+sudo ls -ld /home
+sudo ls -ld /home/agent-admin
+sudo ls -ld /home/agent-admin/agent-app
+sudo ls -ld /home/agent-admin/agent-app/bin
+sudo ls -ld /home/agent-admin/agent-app/upload_files
+sudo ls -ld /home/agent-admin/agent-app/api_keys
+sudo ls -ld /var/log/agent-app
+
+sudo getfacl /home/agent-admin
+sudo getfacl /home/agent-admin/agent-app
+sudo getfacl /home/agent-admin/agent-app/upload_files
+sudo getfacl /home/agent-admin/agent-app/api_keys
+sudo getfacl /var/log/agent-app
+```
+
+필요하면 `$AGENT_HOME`에는 `agent-common`의 통과 권한만 ACL로 부여하고, 실제 읽기/쓰기 권한은 `upload_files`에만 부여한다.
