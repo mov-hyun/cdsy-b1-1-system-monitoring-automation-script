@@ -424,19 +424,54 @@ cat: /home/agent-admin/agent-app/api_keys/t_secret.key: Permission denied
 #### 실행 명령
 
 ```bash
-TODO
+# ARM64 앱 바이너리를 AGENT_HOME에 복사
+sudo cp /mnt/mac/Users/hyun/Desktop/dev/cdsy/b1-1/agent-app/agent-app-linux-arm64 /home/agent-admin/agent-app/agent-app-linux-arm64
+
+sudo chown agent-admin:agent-core /home/agent-admin/agent-app/agent-app-linux-arm64 # 앱 바이너리 소유자/그룹 설정
+sudo chmod 750 /home/agent-admin/agent-app/agent-app-linux-arm64                   # agent-admin과 agent-core만 실행 가능하도록 설정
+
+# 앱 바이너리 권한과 실행 가능 여부 확인
+sudo ls -l /home/agent-admin/agent-app/agent-app-linux-arm64
+sudo -u agent-admin test -x /home/agent-admin/agent-app/agent-app-linux-arm64 && echo "executable"
+
+# agent-admin 계정으로 환경 변수를 로드한 뒤 앱 실행
+sudo -u agent-admin bash -lc 'source /home/agent-admin/agent-app/.env && /home/agent-admin/agent-app/agent-app-linux-arm64'
+
+# 다른 터미널에서 포트 LISTEN 상태 확인
+sudo ss -tulnp | grep 15034
 ```
 
 #### 확인 결과
 
 ```text
-TODO
+-rwxr-x--- 1 agent-admin agent-core 7537848 May 24 18:28 /home/agent-admin/agent-app/agent-app-linux-arm64
+executable
+
+>>> Starting Agent Boot Sequence...
+[1/5] Checking User Account               [OK]
+   ... Running as service user 'agent-admin' (uid=1000)
+[2/5] Verifying Environment Variables     [OK]
+   ... All required Envs correct
+[3/5] Checking Required Files             [OK]
+   ... Verified 'secret.key' with correct key string.
+[4/5] Checking Port Availability          [OK]
+   ... Port 15034 is available.
+[5/5] Verifying Log Permission            [OK]
+   ... Log directory is writable: /var/log/agent-app
+------------------------------------------------------------
+All Boot Checks Passed!
+Agent READY
+2026-05-24 18:31:14,945 [INFO] Agent listening at port 15034
+
+tcp   LISTEN 0      1                   0.0.0.0:15034      0.0.0.0:*    users:(("agent-app-linux",pid=3800,fd=4))
 ```
 
 #### 정리
 
-- Boot Sequence 결과: TODO
-- 포트 LISTEN 확인: TODO
+- 앱은 `agent-admin` 계정으로 실행했다.
+- Boot Sequence 5단계가 모두 `[OK]`로 통과했다.
+- `Agent READY`가 출력되었다.
+- `0.0.0.0:15034`에서 LISTEN 상태임을 확인했다.
 
 ### 4.5 SSH 설정
 
@@ -594,3 +629,48 @@ sudo getfacl /var/log/agent-app
 ```
 
 필요하면 `$AGENT_HOME`에는 `agent-common`의 통과 권한만 ACL로 부여하고, 실제 읽기/쓰기 권한은 `upload_files`에만 부여한다.
+
+### 7.2 제공 앱의 키 경로 검증 기준 차이
+
+#### 증상
+
+과제 설명 기준으로 `AGENT_KEY_PATH`를 키 파일 경로로 설정했을 때 앱의 환경 변수 검증이 실패했다.
+
+```bash
+export AGENT_KEY_PATH=/home/agent-admin/agent-app/api_keys/t_secret.key
+```
+
+```text
+[2/5] Verifying Environment Variables     [FAIL]
+   >>> Key Path Mismatch. Expected: /home/agent-admin/agent-app/api_keys
+```
+
+`AGENT_KEY_PATH`를 디렉토리로 수정한 뒤에는 파일명 검증에서 실패했다.
+
+```text
+[3/5] Checking Required Files             [FAIL]
+   >>> Missing File: secret.key
+   >>>    (Expected location: /home/agent-admin/agent-app/api_keys/secret.key)
+```
+
+#### 원인
+
+과제 설명에는 `AGENT_KEY_PATH` 예시가 `$AGENT_HOME/api_keys/t_secret.key`로 되어 있었지만, 제공 앱은 `AGENT_KEY_PATH`를 키 파일이 아니라 키 디렉토리 경로로 검증했다.
+
+또한 실제 앱은 `t_secret.key`가 아니라 `secret.key` 파일명을 기대했다.
+
+#### 해결
+
+실행 대상인 제공 앱의 검증 기준에 맞춰 환경 변수와 키 파일을 수정했다.
+
+```bash
+export AGENT_KEY_PATH=/home/agent-admin/agent-app/api_keys
+```
+
+```bash
+echo 'agent_api_key_test' | sudo tee /home/agent-admin/agent-app/api_keys/secret.key > /dev/null
+sudo chown agent-admin:agent-core /home/agent-admin/agent-app/api_keys/secret.key
+sudo chmod 640 /home/agent-admin/agent-app/api_keys/secret.key
+```
+
+수정 후 환경 변수 검증과 파일 검증이 모두 `[OK]`로 통과했다.
