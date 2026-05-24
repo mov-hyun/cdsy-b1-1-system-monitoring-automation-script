@@ -365,20 +365,59 @@ ls: cannot open directory '/home/agent-admin/agent-app/api_keys': Permission den
 #### 실행 명령
 
 ```bash
-TODO
+# Agent 앱 실행에 필요한 환경 변수 파일 생성
+sudo -u agent-admin tee /home/agent-admin/agent-app/.env > /dev/null <<'EOF'
+export AGENT_HOME=/home/agent-admin/agent-app
+export AGENT_PORT=15034
+export AGENT_UPLOAD_DIR=/home/agent-admin/agent-app/upload_files
+export AGENT_KEY_PATH=/home/agent-admin/agent-app/api_keys/t_secret.key
+export AGENT_LOG_DIR=/var/log/agent-app
+EOF
+
+# 앱이 검증할 API 키 파일 생성
+echo 'agent_api_key_test' | sudo tee /home/agent-admin/agent-app/api_keys/t_secret.key > /dev/null
+
+sudo chown agent-admin:agent-core /home/agent-admin/agent-app/.env             # 환경 변수 파일 소유자/그룹 설정
+sudo chmod 640 /home/agent-admin/agent-app/.env                                # 소유자는 읽기/쓰기, agent-core는 읽기만 허용
+
+sudo chown agent-admin:agent-core /home/agent-admin/agent-app/api_keys/t_secret.key # 키 파일 소유자/그룹 설정
+sudo chmod 640 /home/agent-admin/agent-app/api_keys/t_secret.key                    # 소유자는 읽기/쓰기, agent-core는 읽기만 허용
+
+# 환경 변수와 키 파일 권한 확인
+sudo ls -l /home/agent-admin/agent-app/.env
+sudo ls -l /home/agent-admin/agent-app/api_keys/t_secret.key
+
+# agent-admin 기준 환경 변수 로드 확인
+sudo -u agent-admin bash -lc 'source /home/agent-admin/agent-app/.env && env | grep "^AGENT_" | sort'
+
+# agent-admin은 키 파일을 읽을 수 있어야 함
+sudo -u agent-admin cat /home/agent-admin/agent-app/api_keys/t_secret.key
+
+# agent-test는 키 파일을 읽을 수 없어야 함
+sudo -u agent-test cat /home/agent-admin/agent-app/api_keys/t_secret.key
 ```
 
 #### 확인 결과
 
 ```text
-TODO
+-rw-r----- 1 agent-admin agent-core 247 May 24 18:18 /home/agent-admin/agent-app/.env
+-rw-r----- 1 agent-admin agent-core 19 May 24 18:18 /home/agent-admin/agent-app/api_keys/t_secret.key
+AGENT_HOME=/home/agent-admin/agent-app
+AGENT_KEY_PATH=/home/agent-admin/agent-app/api_keys/t_secret.key
+AGENT_LOG_DIR=/var/log/agent-app
+AGENT_PORT=15034
+AGENT_UPLOAD_DIR=/home/agent-admin/agent-app/upload_files
+agent_api_key_test
+cat: /home/agent-admin/agent-app/api_keys/t_secret.key: Permission denied
 ```
 
 #### 정리
 
-- 실행 계정: TODO
-- 환경 변수: TODO
-- 키 파일: TODO
+- 실행 계정: `agent-admin`
+- 환경 변수 파일: `/home/agent-admin/agent-app/.env`
+- 키 파일: `/home/agent-admin/agent-app/api_keys/t_secret.key`
+- `.env`와 키 파일은 `agent-admin:agent-core`, `640`으로 설정했다.
+- `agent-admin`은 키 파일을 읽을 수 있고, `agent-test`는 키 파일을 읽을 수 없다.
 
 ### 4.4 앱 실행 확인
 
