@@ -52,24 +52,24 @@
 <details>
 <summary>요구사항 체크리스트</summary>
 
-- [ ] SSH 포트를 `20022`로 변경했다.
-- [ ] root 원격 접속을 차단했다.
-- [ ] 방화벽을 활성화하고 인바운드 허용 포트를 `20022/tcp`, `15034/tcp`로 제한했다.
-- [ ] `agent-admin`, `agent-dev`, `agent-test` 계정과 `agent-common`, `agent-core` 그룹을 생성했다.
-- [ ] `agent-common`에는 admin/dev/test를, `agent-core`에는 admin/dev를 포함했다.
-- [ ] `$AGENT_HOME/upload_files`는 `agent-common`, `$AGENT_HOME/api_keys`와 `/var/log/agent-app`은 `agent-core` 권한으로 구성했다.
-- [ ] `AGENT_HOME`, `AGENT_PORT`, `AGENT_UPLOAD_DIR`, `AGENT_KEY_PATH`, `AGENT_LOG_DIR` 환경 변수를 구성했다.
-- [ ] `$AGENT_HOME/api_keys/t_secret.key` 파일을 생성했다.
-- [ ] 앱을 일반 계정으로 실행하고 Boot Sequence 5단계 `[OK]`, `Agent READY`, `0.0.0.0:15034` LISTEN 상태를 확인했다.
-- [ ] `bin/monitor.sh`를 Bash로 구현하고 실습 서버의 `$AGENT_HOME/bin/monitor.sh`에 배치했다.
-- [ ] `monitor.sh` 소유자/그룹/권한을 `agent-dev:agent-core`, `750`으로 설정했다.
-- [ ] `monitor.sh`가 앱 프로세스와 `15034/tcp` 포트 비정상 상태에서 `exit 1`로 종료한다.
-- [ ] `monitor.sh`가 방화벽 비활성, CPU/MEM/DISK 임계값 초과를 `[WARNING]`으로 출력한다.
-- [ ] `monitor.sh`가 CPU/MEM/DISK 사용률을 수집한다.
-- [ ] `/var/log/agent-app/monitor.log`에 지정 포맷으로 로그를 누적 기록한다.
-- [ ] `monitor.log` 10MB/10개 용량 관리 정책을 구현했다.
+- [x] SSH 포트를 `20022`로 변경했다.
+- [x] root 원격 접속을 차단했다.
+- [x] 방화벽을 활성화하고 인바운드 허용 포트를 `20022/tcp`, `15034/tcp`로 제한했다.
+- [x] `agent-admin`, `agent-dev`, `agent-test` 계정과 `agent-common`, `agent-core` 그룹을 생성했다.
+- [x] `agent-common`에는 admin/dev/test를, `agent-core`에는 admin/dev를 포함했다.
+- [x] `$AGENT_HOME/upload_files`는 `agent-common`, `$AGENT_HOME/api_keys`와 `/var/log/agent-app`은 `agent-core` 권한으로 구성했다.
+- [x] `AGENT_HOME`, `AGENT_PORT`, `AGENT_UPLOAD_DIR`, `AGENT_KEY_PATH`, `AGENT_LOG_DIR` 환경 변수를 구성했다.
+- [x] 제공 앱 기준 키 파일인 `$AGENT_HOME/api_keys/secret.key`를 생성했다.
+- [x] 앱을 일반 계정으로 실행하고 Boot Sequence 5단계 `[OK]`, `Agent READY`, `0.0.0.0:15034` LISTEN 상태를 확인했다.
+- [x] `bin/monitor.sh`를 Bash로 구현하고 실습 서버의 `$AGENT_HOME/bin/monitor.sh`에 배치했다.
+- [x] `monitor.sh` 소유자/그룹/권한을 `agent-dev:agent-core`, `750`으로 설정했다.
+- [x] `monitor.sh`가 앱 프로세스와 `15034/tcp` 포트 비정상 상태에서 `exit 1`로 종료한다.
+- [x] `monitor.sh`가 방화벽 비활성, CPU/MEM/DISK 임계값 초과를 `[WARNING]`으로 출력한다.
+- [x] `monitor.sh`가 CPU/MEM/DISK 사용률을 수집한다.
+- [x] `/var/log/agent-app/monitor.log`에 지정 포맷으로 로그를 누적 기록한다.
+- [x] `monitor.log` 10MB/10개 용량 관리 정책을 구현했다.
 - [ ] `agent-admin` crontab에 `monitor.sh` 매분 실행을 등록하고 1분 후 로그 자동 증가를 확인했다.
-- [ ] 설정 파일, `ss -tulnp`, `monitor.log` 최근 라인으로 주요 결과를 확인했다.
+- [x] 설정 파일, `ss -tulnp`, `monitor.log` 최근 라인으로 주요 결과를 확인했다.
 
 </details>
 
@@ -599,25 +599,149 @@ To                         Action      From
 #### 실행 명령
 
 ```bash
-TODO
+# 로컬 레포의 monitor.sh를 실습 서버의 실행 위치로 배치하면서 소유자/그룹/권한까지 설정
+sudo install -o agent-dev -g agent-core -m 750 /mnt/mac/Users/hyun/Desktop/dev/cdsy/b1-1/bin/monitor.sh /home/agent-admin/agent-app/bin/monitor.sh
+
+sudo ls -l /home/agent-admin/agent-app/bin/monitor.sh # monitor.sh 파일 권한 확인
+
+sudo -u agent-admin bash -n /home/agent-admin/agent-app/bin/monitor.sh # Bash 문법 검사
+
+sudo -u agent-admin /home/agent-admin/agent-app/bin/monitor.sh # agent-admin 계정으로 monitor.sh 실행
+
+sudo -u agent-admin env APP_PATTERN=__not_running__ /home/agent-admin/agent-app/bin/monitor.sh # 프로세스 비정상 상황 테스트
+echo $? # 직전 명령의 종료 코드 확인
+
+sudo -u agent-admin env APP_PORT=1 /home/agent-admin/agent-app/bin/monitor.sh # 포트 비정상 상황 테스트
+echo $? # 직전 명령의 종료 코드 확인
+
+sudo -u agent-admin env CPU_THRESHOLD=0 MEM_THRESHOLD=0 DISK_THRESHOLD=0 /home/agent-admin/agent-app/bin/monitor.sh # 임계값 경고 상황 테스트
+echo $? # 직전 명령의 종료 코드 확인
+
+sudo tail -n 5 /var/log/agent-app/monitor.log # 로그 누적 확인
 ```
 
 #### 확인 결과
 
 ```text
-TODO
+-rwxr-x--- 1 agent-dev agent-core 5233 May 24 19:37 /home/agent-admin/agent-app/bin/monitor.sh
+
+bash -n 문법 검사: 출력 없음
+
+====== SYSTEM MONITOR RESULT ======
+
+[HEALTH CHECK]
+Checking process 'agent-app-linux-arm64'... [OK] (PID: 3798)
+Checking port 15034... [OK]
+Checking firewall... [OK] (UFW enabled)
+
+[RESOURCE MONITORING]
+CPU Usage : 0.1%
+MEM Usage : 4.4%
+DISK Used : 1%
+
+
+[INFO] Log appended: /var/log/agent-app/monitor.log
+
+[2026-05-24 19:40:01] PID:3798 CPU:1.2% MEM:4.9% DISK_USED:1%
+[2026-05-24 19:40:02] PID:3798 CPU:1.4% MEM:4.9% DISK_USED:1%
+[2026-05-24 19:43:11] PID:3798 CPU:0.2% MEM:4.3% DISK_USED:1%
+[2026-05-24 19:43:48] PID:3798 CPU:0.2% MEM:5.0% DISK_USED:1%
+[2026-05-24 19:56:07] PID:3798 CPU:0.1% MEM:4.4% DISK_USED:1%
+
+====== SYSTEM MONITOR RESULT ======
+
+[HEALTH CHECK]
+Checking process '__not_running__'... [FAIL]
+[ERROR] Agent process is not running.
+1
+
+====== SYSTEM MONITOR RESULT ======
+
+[HEALTH CHECK]
+Checking process 'agent-app-linux-arm64'... [OK] (PID: 3798)
+Checking port 1... [FAIL]
+[ERROR] TCP port 1 is not in LISTEN state.
+1
+
+====== SYSTEM MONITOR RESULT ======
+
+[HEALTH CHECK]
+Checking process 'agent-app-linux-arm64'... [OK] (PID: 3798)
+Checking port 15034... [OK]
+Checking firewall... [OK] (UFW enabled)
+
+[RESOURCE MONITORING]
+CPU Usage : 0.0%
+MEM Usage : 4.0%
+DISK Used : 1%
+
+[WARNING] MEM threshold exceeded (4.0% > 0%)
+[WARNING] DISK threshold exceeded (1% > 0%)
+
+[INFO] Log appended: /var/log/agent-app/monitor.log
+0
 ```
 
 #### 정리
 
-- 경로: TODO
-- 소유자/그룹/권한: TODO
-- 프로세스 점검: TODO
-- 포트 점검: TODO
-- 자원 수집: TODO
-- 경고 조건: TODO
-- 로그 기록: TODO
-- 로그 용량 관리: TODO
+- 경로: `/home/agent-admin/agent-app/bin/monitor.sh`
+- 소유자/그룹/권한: `agent-dev:agent-core`, `750`
+- 실행 계정: `agent-admin`
+- 프로세스 점검: `ps -eo pid=,comm=,args=`로 대상 앱 PID를 찾고, 미실행 시 `exit 1`로 종료한다.
+- 포트 점검: `ss -H -tuln`으로 TCP LISTEN 포트를 확인하고, `15034` 미개방 시 `exit 1`로 종료한다.
+- 방화벽 점검: `ufw status`를 우선 확인하고, 일반 계정에서 권한 제한이 있으면 `/etc/ufw/ufw.conf`의 `ENABLED=yes`를 보조 확인값으로 사용한다.
+- CPU 사용률: `/proc/stat`의 전체 CPU 값을 1초 간격으로 두 번 읽고, idle/total 차이를 계산한다.
+- 메모리 사용률: `/proc/meminfo`의 `MemTotal`, `MemAvailable`을 기준으로 계산한다.
+- 디스크 사용률: `df -P /`로 루트 파티션의 Used %를 수집한다.
+- 경고 조건: CPU `20%`, MEM `10%`, DISK `80%` 초과 시 `[WARNING]`을 출력하되 종료하지 않는다.
+- 로그 기록: `/var/log/agent-app/monitor.log`에 `[YYYY-MM-DD HH:MM:SS] PID:... CPU:..% MEM:..% DISK_USED:..%` 형식으로 `>>` 누적 기록한다.
+- 로그 용량 관리: `monitor.log`가 `10MB` 이상이면 `.1`부터 `.10`까지 회전시키고, 가장 오래된 `.10` 파일은 삭제한다.
+- `monitor.sh`는 실행될 때마다 로그를 1줄 기록한다. 과제의 “매분 자동 기록” 요구사항은 다음 단계에서 `cron`이 매분 이 스크립트를 실행하도록 등록해 충족한다.
+
+#### 코드 설명
+
+`monitor.sh`는 크게 설정값 정의, Health Check, 리소스 수집, 경고 출력, 로그 기록, 로그 회전 순서로 동작한다.
+
+| 구간 | 코드 요소 | 설명 |
+|---|---|---|
+| 기본 설정 | `set -euo pipefail` | 명령 실패, 미정의 변수 사용, 파이프라인 실패를 엄격하게 처리해 스크립트 오류를 빨리 발견한다. |
+| 기본 설정 | `APP_PATTERN`, `APP_PORT`, `LOG_DIR` | 모니터링 대상 프로세스명, 포트, 로그 경로를 변수로 분리했다. 기본값은 과제 기준에 맞추고, 테스트할 때는 환경 변수로 덮어쓸 수 있게 했다. |
+| 기본 설정 | `CPU_THRESHOLD`, `MEM_THRESHOLD`, `DISK_THRESHOLD` | CPU, 메모리, 디스크 경고 기준을 변수로 분리했다. 과제 기준은 각각 `20`, `10`, `80`이다. |
+| 기본 설정 | `MAX_LOG_BYTES`, `MAX_LOG_FILES` | 로그 회전 기준을 `10MB`, `10개`로 관리하기 위한 값이다. |
+| 기본 설정 | `umask 007` | 새로 생성되는 로그 파일이 기본적으로 others 권한을 갖지 않도록 제한한다. |
+| 프로세스 확인 | `find_agent_pid` | `ps -eo pid=,comm=,args=`로 실행 중인 프로세스를 조회하고, `agent-app-linux-arm64`에 해당하는 PID를 찾는다. |
+| 프로세스 확인 | `check_process` | PID가 없으면 `[FAIL]`을 출력하고 `exit 1`로 종료한다. 프로세스가 없으면 앱이 실행 중이 아니므로 Health Check 실패로 본다. |
+| 포트 확인 | `check_port` | `ss -H -tuln`으로 TCP LISTEN 포트를 조회하고, 로컬 주소의 마지막 포트 번호가 `15034`인지 정확히 비교한다. |
+| 방화벽 확인 | `check_firewall` | `ufw status`로 활성화 여부를 확인한다. 일반 계정에서 권한 제한이 있으면 `/etc/ufw/ufw.conf`의 `ENABLED=yes`를 보조 확인값으로 사용한다. |
+| CPU 수집 | `read_cpu_times`, `get_cpu_usage` | `/proc/stat`의 전체 CPU 누적값을 1초 간격으로 두 번 읽고, idle/total 차이를 이용해 CPU 사용률을 계산한다. |
+| 메모리 수집 | `get_mem_usage` | `/proc/meminfo`의 `MemTotal`, `MemAvailable` 값을 이용해 현재 메모리 사용률을 계산한다. |
+| 디스크 수집 | `get_disk_usage` | `df -P /`로 루트 파티션의 사용률을 가져오고 `%` 기호를 제거한다. |
+| 경고 처리 | `float_gt`, `warn_if_needed` | CPU/MEM/DISK 값이 임계값을 초과하면 `[WARNING]`을 출력한다. 경고는 운영자가 확인해야 할 상태이므로 스크립트를 종료하지 않는다. |
+| 로그 준비 | `prepare_log_file` | 로그 디렉토리 존재 여부와 쓰기 권한을 확인하고, `monitor.log` 파일을 준비한다. |
+| 로그 회전 | `rotate_logs` | `monitor.log`가 기준 크기 이상이면 기존 파일을 `.1`, `.2`처럼 뒤로 밀고, 가장 오래된 `.10` 파일을 삭제한다. |
+| 로그 기록 | `append_log` | 현재 시각, PID, CPU, MEM, DISK 값을 지정 포맷으로 `monitor.log`에 누적 기록한다. |
+| 실행 흐름 | `main` | Health Check를 먼저 수행하고, 통과한 경우에만 리소스 수집, 경고 출력, 로그 회전, 로그 기록을 순서대로 실행한다. |
+
+프로세스 확인에서 `pgrep -f`만 단순 사용하지 않은 이유는 테스트용 환경 변수나 `monitor.sh` 실행 명령 자체가 검색 결과에 잡힐 수 있기 때문이다. 그래서 `ps` 결과에서 `monitor.sh`, `sudo`, `bash`, `sh`, `env`, `awk` 같은 실행 보조 프로세스를 제외하고 실제 앱 프로세스를 우선 찾도록 했다.
+
+포트 확인에서는 문자열 포함 여부만 보면 `APP_PORT=1`이 `15034` 안의 `1`과 잘못 매칭될 수 있다. 그래서 `ss` 출력의 로컬 주소에서 마지막 포트 번호만 분리한 뒤 정확히 같은지 비교했다.
+
+전체 실행 흐름은 다음과 같다.
+
+```text
+monitor.sh 실행
+-> Agent 프로세스 확인
+   -> 실패 시 exit 1
+-> TCP 15034 LISTEN 확인
+   -> 실패 시 exit 1
+-> 방화벽 활성화 확인
+   -> 비활성 또는 확인 불가 시 WARNING만 출력
+-> CPU/MEM/DISK 사용률 수집
+-> 임계값 초과 여부 확인
+   -> 초과 시 WARNING만 출력
+-> monitor.log 용량 확인 및 회전
+-> monitor.log에 현재 상태 누적 기록
+```
 
 ### 4.8 cron 자동 실행
 
