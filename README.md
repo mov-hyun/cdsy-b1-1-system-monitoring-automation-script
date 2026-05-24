@@ -1,8 +1,14 @@
 # 시스템 관제 자동화 스크립트 개발
 
-Linux 서버 운영 환경을 구성하고, 제공 Agent 앱의 상태를 Bash 스크립트로 관제하는 과제입니다.
+> Linux 서버 운영 환경을 구성하고, 제공 Agent 앱의 상태를 Bash 스크립트로 관제하는 과제입니다.
+
+![Ubuntu](https://img.shields.io/badge/Ubuntu-24.04%20LTS-E95420?style=flat-square&logo=ubuntu&logoColor=white)
+![Bash](https://img.shields.io/badge/Bash-monitor.sh-4EAA25?style=flat-square&logo=gnubash&logoColor=white)
+![UFW](https://img.shields.io/badge/Firewall-UFW-1E88E5?style=flat-square)
+![cron](https://img.shields.io/badge/Scheduler-cron-6B7280?style=flat-square)
 
 ## 목차
+---
 
 1. [과제 개요](#1-과제-개요)
 2. [실습 환경 및 필수 도구 확인](#2-실습-환경-및-필수-도구-확인)
@@ -11,9 +17,8 @@ Linux 서버 운영 환경을 구성하고, 제공 Agent 앱의 상태를 Bash �
 5. [장애 상황 대응](#5-장애-상황-대응)
 6. [보너스 과제](#6-보너스-과제)
 
----
-
 ## 1. 과제 개요
+---
 
 이 과제는 단일 Linux 서버를 운영한다고 가정하고, 기본 보안 설정부터 서비스 실행, 상태 점검, 로그 기록, 자동 실행까지 구성하는 실습입니다.
 주요 목표는 다음과 같습니다.
@@ -45,6 +50,9 @@ Linux 서버 운영 환경을 구성하고, 제공 Agent 앱의 상태를 Bash �
 
 ### 체크리스트
 
+<details>
+<summary>요구사항 체크리스트</summary>
+
 - [ ] SSH 포트를 `20022`로 변경했다.
 - [ ] root 원격 접속을 차단했다.
 - [ ] 방화벽을 활성화하고 인바운드 허용 포트를 `20022/tcp`, `15034/tcp`로 제한했다.
@@ -64,9 +72,10 @@ Linux 서버 운영 환경을 구성하고, 제공 Agent 앱의 상태를 Bash �
 - [ ] `agent-admin` crontab에 `monitor.sh` 매분 실행을 등록하고 1분 후 로그 자동 증가를 확인했다.
 - [ ] 설정 파일, `ss -tulnp`, `monitor.log` 최근 라인으로 주요 결과를 확인했다.
 
----
+</details>
 
 ## 2. 실습 환경 및 필수 도구 확인
+---
 
 Linux 실습 환경과 필수 도구 준비
 
@@ -91,9 +100,8 @@ Linux 실습 환경과 필수 도구 준비
 | `crontab` | 사용자별 cron 작업 등록 도구 | `agent-admin` 계정의 매분 실행 일정을 등록하고 확인하기 위해 사용 |
 | `ss` | 네트워크 소켓 상태 확인 도구 | `sshd`와 Agent 앱이 각각 `20022`, `15034` 포트에서 LISTEN 중인지 확인하기 위해 사용 |
 
----
-
 ## 3. 핵심 개념 정리
+---
 
 ### 3.1 SSH 포트 변경과 root 접속 차단
 
@@ -169,9 +177,8 @@ logrotate는 운영체제의 표준 로그 관리 방식이고, 스크립트 내
 
 포트 확인에는 `ss` 또는 `netstat`를 사용할 수 있습니다. 최신 Linux 환경에서는 `ss`가 기본 도구로 더 적합하며, LISTEN 상태의 TCP 포트를 확인하는 데 사용합니다.
 
----
-
 ## 4. 수행 내역
+---
 
 ### 4.1 계정과 그룹
 
@@ -370,17 +377,15 @@ TODO
 - 등록 주기: TODO
 - 로그 증가 확인: TODO
 
----
-
 ## 5. 장애 상황 대응
+---
 
 - 모니터링 대상이 Nginx 등 웹 서버로 바뀌면 수정할 핵심 포인트: TODO
 - 프로세스는 살아있지만 포트가 열리지 않은 상황의 원인 후보와 확인 순서: TODO
 - 로그 급증으로 디스크가 가득 찰 위험이 있을 때 단기/중기 대응: TODO
 
----
-
 ## 6. 보너스 과제
+---
 
 - `report.sh` 요약 리포트: TODO
 - 시간 기반 로그 보존 정책: TODO
