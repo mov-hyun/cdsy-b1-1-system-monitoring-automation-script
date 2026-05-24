@@ -68,7 +68,7 @@
 - [x] `monitor.sh`가 CPU/MEM/DISK 사용률을 수집한다.
 - [x] `/var/log/agent-app/monitor.log`에 지정 포맷으로 로그를 누적 기록한다.
 - [x] `monitor.log` 10MB/10개 용량 관리 정책을 구현했다.
-- [ ] `agent-admin` crontab에 `monitor.sh` 매분 실행을 등록하고 1분 후 로그 자동 증가를 확인했다.
+- [x] `agent-admin` crontab에 `monitor.sh` 매분 실행을 등록하고 1분 후 로그 자동 증가를 확인했다.
 - [x] 설정 파일, `ss -tulnp`, `monitor.log` 최근 라인으로 주요 결과를 확인했다.
 
 </details>
@@ -748,20 +748,56 @@ monitor.sh 실행
 #### 실행 명령
 
 ```bash
-TODO
+systemctl is-active cron  # cron 서비스 실행 상태 확인
+systemctl is-enabled cron # cron 서비스 부팅 자동 시작 여부 확인
+
+sudo crontab -u agent-admin -l # agent-admin의 기존 crontab 확인
+
+# 기존 monitor.sh 등록 줄은 제거하고, 매분 실행 cron 규칙을 등록
+sudo bash -c '(crontab -u agent-admin -l 2>/dev/null | grep -v "/home/agent-admin/agent-app/bin/monitor.sh"; echo "* * * * * /home/agent-admin/agent-app/bin/monitor.sh >/dev/null 2>&1") | crontab -u agent-admin -'
+
+sudo crontab -u agent-admin -l # agent-admin crontab 등록 확인
+
+sudo wc -l /var/log/agent-app/monitor.log       # cron 실행 전 monitor.log 줄 수 확인
+sudo tail -n 3 /var/log/agent-app/monitor.log   # cron 실행 전 최근 로그 확인
+
+sleep 70 # cron이 최소 1번 이상 실행될 수 있도록 70초 대기
+
+sudo wc -l /var/log/agent-app/monitor.log       # cron 실행 후 monitor.log 줄 수 확인
+sudo tail -n 5 /var/log/agent-app/monitor.log   # cron 실행 후 최근 로그 확인
 ```
 
 #### 확인 결과
 
 ```text
-TODO
+active
+enabled
+
+no crontab for agent-admin
+
+* * * * * /home/agent-admin/agent-app/bin/monitor.sh >/dev/null 2>&1
+
+16 /var/log/agent-app/monitor.log
+[2026-05-24 19:43:48] PID:3798 CPU:0.2% MEM:5.0% DISK_USED:1%
+[2026-05-24 19:56:07] PID:3798 CPU:0.1% MEM:4.4% DISK_USED:1%
+[2026-05-24 19:56:42] PID:3798 CPU:0.0% MEM:4.0% DISK_USED:1%
+
+20 /var/log/agent-app/monitor.log
+[2026-05-24 19:56:42] PID:3798 CPU:0.0% MEM:4.0% DISK_USED:1%
+[2026-05-24 20:08:02] PID:3798 CPU:0.1% MEM:4.4% DISK_USED:1%
+[2026-05-24 20:09:02] PID:3798 CPU:0.3% MEM:4.8% DISK_USED:1%
+[2026-05-24 20:10:02] PID:3798 CPU:0.0% MEM:4.0% DISK_USED:1%
+[2026-05-24 20:11:02] PID:3798 CPU:0.0% MEM:4.9% DISK_USED:1%
 ```
 
 #### 정리
 
-- 실행 계정: TODO
-- 등록 주기: TODO
-- 로그 증가 확인: TODO
+- 실행 계정: `agent-admin`
+- 등록 주기: 매분 실행 (`* * * * *`)
+- 실행 명령: `/home/agent-admin/agent-app/bin/monitor.sh`
+- 출력 처리: `>/dev/null 2>&1`로 cron 실행 출력은 버리고, 상태 기록은 `monitor.sh` 내부에서 `/var/log/agent-app/monitor.log`에 남긴다.
+- 로그 증가 확인: `monitor.log` 줄 수가 `16`에서 `20`으로 증가했다.
+- 자동 실행 확인: `20:08:02`, `20:09:02`, `20:10:02`, `20:11:02`처럼 1분 간격으로 로그가 누적되었다.
 
 ---
 
