@@ -36,16 +36,21 @@
 1. 요구사항 수행 내역서: 이 `README.md`
 2. 자동화 스크립트: `bin/monitor.sh`
 
+보너스 수행 파일: `bin/report.sh`, `bin/archive_logs.sh`
+
 ### 레포지토리 구조
 
 ```text
 .
 ├── README.md
 └── bin/
-    └── monitor.sh
+    ├── archive_logs.sh
+    ├── monitor.sh
+    └── report.sh
 ```
 
 레포지토리의 `bin/monitor.sh`는 실습 서버에서 `$AGENT_HOME/bin/monitor.sh`로 배치해 사용하는 파일입니다.
+보너스 과제의 `bin/report.sh`, `bin/archive_logs.sh`는 실습 서버에서 `$AGENT_HOME/bin/` 아래로 배치해 사용하는 파일입니다.
 
 ### 체크리스트
 
@@ -890,8 +895,157 @@ sudo tail -n 100 /var/log/agent-app/monitor.log # 최근 로그 패턴 확인
 
 ## 6. 보너스 과제
 
-- `report.sh` 요약 리포트: TODO
-- 시간 기반 로그 보존 정책: TODO
+### 6.1 report.sh 요약 리포트
+
+`report.sh`는 `/var/log/agent-app/monitor.log`를 분석해 CPU, Memory, Disk 사용률의 평균, 최대, 최소와 샘플 수를 출력하는 보너스 스크립트다.
+
+#### 실행 명령
+
+```bash
+# 로컬 레포의 report.sh를 실습 서버의 실행 위치로 배치하면서 소유자/그룹/권한까지 설정
+sudo install -o agent-dev -g agent-core -m 750 /mnt/mac/Users/hyun/Desktop/dev/cdsy/b1-1/bin/report.sh /home/agent-admin/agent-app/bin/report.sh
+
+sudo ls -l /home/agent-admin/agent-app/bin/report.sh # report.sh 파일 권한 확인
+
+sudo -u agent-admin bash -n /home/agent-admin/agent-app/bin/report.sh # Bash 문법 검사
+
+sudo -u agent-admin /home/agent-admin/agent-app/bin/report.sh # 전체 monitor.log 기준 리포트 생성
+
+sudo -u agent-admin /home/agent-admin/agent-app/bin/report.sh --start '2026-05-24 20:08:00' --end '2026-05-24 20:11:59' # 특정 시간 구간 리포트 생성
+```
+
+#### 확인 결과
+
+```text
+-rwxr-x--- 1 agent-dev agent-core 3018 May 24 20:34 /home/agent-admin/agent-app/bin/report.sh
+
+bash -n 문법 검사: 출력 없음
+
+====== STATISTICS REPORT ======
+[CPU]
+Average : 0.7%
+Maximum : 4.1% at 2026-05-24 20:31:02
+Minimum : 0.0% at 2026-05-24 19:56:42
+[Memory]
+Average : 4.5%
+Maximum : 5.2% at 2026-05-24 20:16:03
+Minimum : 3.3% at 2026-05-24 20:22:02
+[Disk]
+Average : 1.0%
+Maximum : 1.0% at 2026-05-24 19:35:53
+Minimum : 1.0% at 2026-05-24 19:35:53
+[Samples]
+Data Points: 44 samples
+
+====== STATISTICS REPORT ======
+[CPU]
+Average : 0.1%
+Maximum : 0.3% at 2026-05-24 20:09:02
+Minimum : 0.0% at 2026-05-24 20:10:02
+[Memory]
+Average : 4.5%
+Maximum : 4.9% at 2026-05-24 20:11:02
+Minimum : 4.0% at 2026-05-24 20:10:02
+[Disk]
+Average : 1.0%
+Maximum : 1.0% at 2026-05-24 20:08:02
+Minimum : 1.0% at 2026-05-24 20:08:02
+[Samples]
+Data Points: 4 samples
+```
+
+#### 정리
+
+- 경로: `/home/agent-admin/agent-app/bin/report.sh`
+- 소유자/그룹/권한: `agent-dev:agent-core`, `750`
+- 실행 계정: `agent-admin`
+- 기본 로그 파일: `/var/log/agent-app/monitor.log`
+- 출력 항목: CPU/MEM/DISK의 평균, 최대, 최소, 샘플 수
+- 시간 필터: `--start`, `--end` 옵션으로 특정 구간의 로그만 분석할 수 있다.
+- 구현 방식: `awk`로 `monitor.log`의 `CPU:`, `MEM:`, `DISK_USED:` 값을 파싱하고 누적합, 최대값, 최소값을 계산한다.
+
+### 6.2 시간 기반 로그 보존 정책
+
+`archive_logs.sh`는 `/var/log/agent-app/*.log` 중 7일 이상 지난 로그를 압축해 `/var/log/monitor/agent-app/archive/`로 이동하고, 30일 이상 지난 `.gz` 아카이브를 삭제하는 보너스 스크립트다.
+
+#### 실행 명령
+
+```bash
+# 로컬 레포의 archive_logs.sh를 실습 서버의 실행 위치로 배치하면서 소유자/그룹/권한까지 설정
+sudo install -o agent-dev -g agent-core -m 750 /mnt/mac/Users/hyun/Desktop/dev/cdsy/b1-1/bin/archive_logs.sh /home/agent-admin/agent-app/bin/archive_logs.sh
+
+sudo ls -l /home/agent-admin/agent-app/bin/archive_logs.sh # archive_logs.sh 파일 권한 확인
+
+sudo -u agent-admin bash -n /home/agent-admin/agent-app/bin/archive_logs.sh # Bash 문법 검사
+
+sudo mkdir -p /var/log/monitor/agent-app/archive # 아카이브 디렉토리 생성
+sudo chown agent-admin:agent-core /var/log/monitor/agent-app/archive # 아카이브 디렉토리 소유자/그룹 설정
+sudo chmod 770 /var/log/monitor/agent-app/archive # agent-core 그룹에 읽기/쓰기/진입 권한 부여
+
+sudo ls -ld /var/log/monitor/agent-app/archive # 아카이브 디렉토리 권한 확인
+
+sudo -u agent-admin /home/agent-admin/agent-app/bin/archive_logs.sh # 기본 경로 기준 로그 보존 정책 실행
+```
+
+임시 디렉토리 검증 명령은 실제 운영 로그를 건드리지 않기 위해 `/tmp` 아래 테스트 로그를 만들어 실행했다.
+
+```bash
+sudo -u agent-admin bash -lc 'set -euo pipefail; tmp=$(mktemp -d); logdir="$tmp/logs"; archivedir="$tmp/archive"; mkdir -p "$logdir" "$archivedir"; printf "old log\n" > "$logdir/old.log"; printf "new log\n" > "$logdir/new.log"; touch -d "8 days ago" "$logdir/old.log"; touch -d "1 day ago" "$logdir/new.log"; printf "expired archive\n" | gzip > "$archivedir/expired.log.gz"; printf "fresh archive\n" | gzip > "$archivedir/fresh.log.gz"; touch -d "31 days ago" "$archivedir/expired.log.gz"; touch -d "1 day ago" "$archivedir/fresh.log.gz"; /home/agent-admin/agent-app/bin/archive_logs.sh --log-dir "$logdir" --archive-dir "$archivedir" --compress-days 7 --delete-days 30; echo "TMP_DIR:$tmp"; find "$tmp" -maxdepth 3 -type f -printf "%P\n" | sort'
+
+sudo -u agent-admin bash -lc 'set -euo pipefail; tmp=$(mktemp -d); mkdir -p "$tmp/logs" "$tmp/archive"; /home/agent-admin/agent-app/bin/archive_logs.sh --log-dir "$tmp/logs" --archive-dir "$tmp/archive" --compress-days 7 --delete-days 30'
+```
+
+#### 확인 결과
+
+```text
+-rwxr-x--- 1 agent-dev agent-core 4156 May 24 20:57 /home/agent-admin/agent-app/bin/archive_logs.sh
+
+bash -n 문법 검사: 출력 없음
+
+drwxrwx--- 1 agent-admin agent-core 0 May 24 20:58 /var/log/monitor/agent-app/archive
+
+====== LOG ARCHIVE RESULT ======
+Log directory     : /var/log/agent-app
+Archive directory : /var/log/monitor/agent-app/archive
+Compress policy   : *.log older than 7 days
+Delete policy     : *.gz older than 30 days
+
+[INFO] No *.log files older than 7 days in /var/log/agent-app.
+[INFO] No archived *.gz files older than 30 days in /var/log/monitor/agent-app/archive.
+
+====== LOG ARCHIVE RESULT ======
+Log directory     : /tmp/tmp.exhb3nWY3V/logs
+Archive directory : /tmp/tmp.exhb3nWY3V/archive
+Compress policy   : *.log older than 7 days
+Delete policy     : *.gz older than 30 days
+
+[INFO] Archived: /tmp/tmp.exhb3nWY3V/logs/old.log -> /tmp/tmp.exhb3nWY3V/archive/old.log.20260524213329.7621.gz
+[INFO] Deleted old archive: /tmp/tmp.exhb3nWY3V/archive/expired.log.gz
+TMP_DIR:/tmp/tmp.exhb3nWY3V
+archive/fresh.log.gz
+archive/old.log.20260524213329.7621.gz
+logs/new.log
+
+====== LOG ARCHIVE RESULT ======
+Log directory     : /tmp/tmp.awx4rxNNCa/logs
+Archive directory : /tmp/tmp.awx4rxNNCa/archive
+Compress policy   : *.log older than 7 days
+Delete policy     : *.gz older than 30 days
+
+[INFO] No *.log files older than 7 days in /tmp/tmp.awx4rxNNCa/logs.
+[INFO] No archived *.gz files older than 30 days in /tmp/tmp.awx4rxNNCa/archive.
+```
+
+#### 정리
+
+- 경로: `/home/agent-admin/agent-app/bin/archive_logs.sh`
+- 소유자/그룹/권한: `agent-dev:agent-core`, `750`
+- 실행 계정: `agent-admin`
+- 압축 대상: `/var/log/agent-app/*.log` 중 7일 이상 지난 파일
+- 아카이브 경로: `/var/log/monitor/agent-app/archive/`
+- 삭제 대상: archive 디렉토리의 `.gz` 중 30일 이상 지난 파일
+- 예외 처리: 로그 디렉토리 미존재, 아카이브 디렉토리 미존재, 대상 파일 0개 상황에서 메시지를 출력하고 안전하게 종료한다.
+- 검증 결과: 8일 지난 `old.log`는 `.gz`로 압축되어 archive로 이동했고, 31일 지난 `expired.log.gz`는 삭제되었다. 1일 지난 `new.log`와 `fresh.log.gz`는 유지되었다.
 
 ---
 
