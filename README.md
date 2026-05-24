@@ -370,52 +370,52 @@ sudo -u agent-admin tee /home/agent-admin/agent-app/.env > /dev/null <<'EOF'
 export AGENT_HOME=/home/agent-admin/agent-app
 export AGENT_PORT=15034
 export AGENT_UPLOAD_DIR=/home/agent-admin/agent-app/upload_files
-export AGENT_KEY_PATH=/home/agent-admin/agent-app/api_keys/t_secret.key
+export AGENT_KEY_PATH=/home/agent-admin/agent-app/api_keys
 export AGENT_LOG_DIR=/var/log/agent-app
 EOF
 
 # 앱이 검증할 API 키 파일 생성
-echo 'agent_api_key_test' | sudo tee /home/agent-admin/agent-app/api_keys/t_secret.key > /dev/null
+echo 'agent_api_key_test' | sudo tee /home/agent-admin/agent-app/api_keys/secret.key > /dev/null
 
 sudo chown agent-admin:agent-core /home/agent-admin/agent-app/.env             # 환경 변수 파일 소유자/그룹 설정
 sudo chmod 640 /home/agent-admin/agent-app/.env                                # 소유자는 읽기/쓰기, agent-core는 읽기만 허용
 
-sudo chown agent-admin:agent-core /home/agent-admin/agent-app/api_keys/t_secret.key # 키 파일 소유자/그룹 설정
-sudo chmod 640 /home/agent-admin/agent-app/api_keys/t_secret.key                    # 소유자는 읽기/쓰기, agent-core는 읽기만 허용
+sudo chown agent-admin:agent-core /home/agent-admin/agent-app/api_keys/secret.key # 키 파일 소유자/그룹 설정
+sudo chmod 640 /home/agent-admin/agent-app/api_keys/secret.key                    # 소유자는 읽기/쓰기, agent-core는 읽기만 허용
 
 # 환경 변수와 키 파일 권한 확인
 sudo ls -l /home/agent-admin/agent-app/.env
-sudo ls -l /home/agent-admin/agent-app/api_keys/t_secret.key
+sudo ls -l /home/agent-admin/agent-app/api_keys/secret.key
 
 # agent-admin 기준 환경 변수 로드 확인
 sudo -u agent-admin bash -lc 'source /home/agent-admin/agent-app/.env && env | grep "^AGENT_" | sort'
 
 # agent-admin은 키 파일을 읽을 수 있어야 함
-sudo -u agent-admin cat /home/agent-admin/agent-app/api_keys/t_secret.key
+sudo -u agent-admin cat /home/agent-admin/agent-app/api_keys/secret.key
 
 # agent-test는 키 파일을 읽을 수 없어야 함
-sudo -u agent-test cat /home/agent-admin/agent-app/api_keys/t_secret.key
+sudo -u agent-test cat /home/agent-admin/agent-app/api_keys/secret.key
 ```
 
 #### 확인 결과
 
 ```text
--rw-r----- 1 agent-admin agent-core 247 May 24 18:18 /home/agent-admin/agent-app/.env
--rw-r----- 1 agent-admin agent-core 19 May 24 18:18 /home/agent-admin/agent-app/api_keys/t_secret.key
+-rw-r----- 1 agent-admin agent-core 235 May 24 18:30 /home/agent-admin/agent-app/.env
+-rw-r----- 1 agent-admin agent-core 19 May 24 18:30 /home/agent-admin/agent-app/api_keys/secret.key
 AGENT_HOME=/home/agent-admin/agent-app
-AGENT_KEY_PATH=/home/agent-admin/agent-app/api_keys/t_secret.key
+AGENT_KEY_PATH=/home/agent-admin/agent-app/api_keys
 AGENT_LOG_DIR=/var/log/agent-app
 AGENT_PORT=15034
 AGENT_UPLOAD_DIR=/home/agent-admin/agent-app/upload_files
 agent_api_key_test
-cat: /home/agent-admin/agent-app/api_keys/t_secret.key: Permission denied
+cat: /home/agent-admin/agent-app/api_keys/secret.key: Permission denied
 ```
 
 #### 정리
 
 - 실행 계정: `agent-admin`
 - 환경 변수 파일: `/home/agent-admin/agent-app/.env`
-- 키 파일: `/home/agent-admin/agent-app/api_keys/t_secret.key`
+- 키 파일: `/home/agent-admin/agent-app/api_keys/secret.key`
 - `.env`와 키 파일은 `agent-admin:agent-core`, `640`으로 설정했다.
 - `agent-admin`은 키 파일을 읽을 수 있고, `agent-test`는 키 파일을 읽을 수 없다.
 
@@ -478,20 +478,72 @@ tcp   LISTEN 0      1                   0.0.0.0:15034      0.0.0.0:*    users:((
 #### 실행 명령
 
 ```bash
-TODO
+# sshd 설정 파일 생성
+sudo tee /etc/ssh/sshd_config.d/agent-hardening.conf > /dev/null <<'EOF'
+Port 20022
+PermitRootLogin no
+EOF
+
+# sshd 런타임 디렉토리 생성 및 설정 문법 검사
+sudo mkdir -p /run/sshd
+sudo sshd -t
+
+# Ubuntu 24.04 ssh.socket의 ListenStream을 20022로 재정의
+sudo mkdir -p /etc/systemd/system/ssh.socket.d
+sudo tee /etc/systemd/system/ssh.socket.d/listen.conf > /dev/null <<'EOF'
+[Socket]
+ListenStream=
+ListenStream=0.0.0.0:20022
+ListenStream=[::]:20022
+EOF
+
+# systemd 설정 재로드 및 SSH socket/service 재시작
+sudo systemctl daemon-reload
+sudo systemctl restart ssh.socket
+sudo systemctl restart ssh
+
+# 설정 파일과 socket 설정 확인
+sudo grep -R "Port\|PermitRootLogin" /etc/ssh/sshd_config /etc/ssh/sshd_config.d
+sudo systemctl cat --no-pager ssh.socket
+
+# 실제 LISTEN 포트 확인
+sudo ss -tulnp | grep 20022
+sudo ss -tulnp | grep ':22 '
 ```
 
 #### 확인 결과
 
 ```text
-TODO
+/etc/ssh/sshd_config:#Port 22
+/etc/ssh/sshd_config:#PermitRootLogin prohibit-password
+/etc/ssh/sshd_config.d/agent-hardening.conf:Port 20022
+/etc/ssh/sshd_config.d/agent-hardening.conf:PermitRootLogin no
+
+# /run/systemd/generator/ssh.socket.d/addresses.conf
+[Socket]
+ListenStream=
+ListenStream=0.0.0.0:20022
+ListenStream=[::]:20022
+
+# /etc/systemd/system/ssh.socket.d/listen.conf
+[Socket]
+ListenStream=
+ListenStream=0.0.0.0:20022
+ListenStream=[::]:20022
+
+tcp   LISTEN 0      4096                0.0.0.0:20022      0.0.0.0:*    users:(("sshd",pid=3986,fd=3),("systemd",pid=1,fd=51))
+tcp   LISTEN 0      4096                   [::]:20022         [::]:*    users:(("sshd",pid=3986,fd=4),("systemd",pid=1,fd=52))
+
+sudo ss -tulnp | grep ':22 ' -> 출력 없음
 ```
 
 #### 정리
 
-- SSH 포트: TODO
-- root 원격 접속 차단: TODO
-- `sshd` 리슨 상태: TODO
+- SSH 포트를 `20022`로 변경했다.
+- root 원격 접속을 `PermitRootLogin no`로 차단했다.
+- `ssh.socket`의 `ListenStream`도 `20022`로 재정의했다.
+- `ss` 결과에서 `0.0.0.0:20022`, `[::]:20022` LISTEN 상태를 확인했다.
+- 기존 `22` 포트는 LISTEN 결과에 나타나지 않았다.
 
 ### 4.6 방화벽 설정
 
@@ -674,3 +726,54 @@ sudo chmod 640 /home/agent-admin/agent-app/api_keys/secret.key
 ```
 
 수정 후 환경 변수 검증과 파일 검증이 모두 `[OK]`로 통과했다.
+
+### 7.3 sshd_config 변경 후에도 22번 포트로 리슨됨
+
+#### 증상
+
+`/etc/ssh/sshd_config.d/agent-hardening.conf`에 `Port 20022`를 설정했지만, 실제 리슨 포트는 계속 `22`로 확인되었다.
+
+```text
+tcp   LISTEN 0      4096                0.0.0.0:22         0.0.0.0:*    users:(("sshd",pid=3845,fd=3),("systemd",pid=1,fd=115))
+tcp   LISTEN 0      4096                   [::]:22            [::]:*    users:(("sshd",pid=3845,fd=4),("systemd",pid=1,fd=116))
+```
+
+#### 원인
+
+Ubuntu 24.04 환경에서 SSH가 `ssh.socket` 기반 socket activation으로 동작하고 있었다. 이 경우 `sshd_config`의 `Port` 설정만으로는 systemd socket이 열고 있는 `ListenStream=22`를 변경할 수 없다.
+
+확인 결과 `ssh.socket`은 활성화되어 있었고, 기본 설정에서 `22` 포트를 리슨하고 있었다.
+
+```bash
+systemctl is-active ssh.socket
+systemctl is-enabled ssh.socket
+systemctl cat ssh.socket
+```
+
+```text
+active
+enabled
+ListenStream=0.0.0.0:22
+ListenStream=[::]:22
+```
+
+#### 해결
+
+`ssh.socket` override 설정을 추가해 기존 `ListenStream`을 비우고 `20022`로 재정의했다.
+
+```bash
+sudo mkdir -p /etc/systemd/system/ssh.socket.d
+
+sudo tee /etc/systemd/system/ssh.socket.d/listen.conf > /dev/null <<'EOF'
+[Socket]
+ListenStream=
+ListenStream=0.0.0.0:20022
+ListenStream=[::]:20022
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl restart ssh.socket
+sudo systemctl restart ssh
+```
+
+최종적으로 `ss` 결과에서 `20022` 리슨 상태를 확인했다.
